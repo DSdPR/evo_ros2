@@ -46,8 +46,22 @@ logger = logging.getLogger(__name__)
 SUPPORTED_ROS_MSGS = {
     "geometry_msgs/msg/PoseStamped",
     "geometry_msgs/msg/PoseWithCovarianceStamped",
-    "geometry_msgs/msg/TransformStamped", "nav_msgs/msg/Odometry"
+    "geometry_msgs/msg/TransformStamped", "nav_msgs/msg/Odometry", "g3_ros2_interfaces/msg/PVTData"
 }
+
+from rosbags.typesys import get_types_from_idl, get_types_from_msg, register_types
+
+## Adding the G3 ROS2 driver message types for use with the rosbags API. Make sure to add your path to the cli_ros_wrapper package here!
+for f in os.listdir("cli_ros_wrapper/code/install/g3_ros2_interfaces/share/g3_ros2_interfaces/msg/"): 
+    msg_text = Path('cli_ros_wrapper/code/install/g3_ros2_interfaces/share/g3_ros2_interfaces/msg/
+    # plain dictionary to hold message definitions
+    add_types = {}
+
+    # add definition from one msg file
+    add_types.update(get_types_from_msg(msg_text, 'g3_ros2_interfaces/msg/'+f.replace(".msg","")))
+
+    # make types available to rosbags serializers/deserializers
+    register_types(add_types)
 
 
 class FileInterfaceException(EvoException):
@@ -235,6 +249,14 @@ def _get_xyz_quat_from_pose_or_odometry_msg(msg) -> typing.Tuple[list, list]:
     ]
     return xyz, quat
 
+def _get_xyz_quat_from_pvt(msg) -> typing.Tuple[list, list]:
+    xyz = [
+        msg.xecef, msg.yecef,
+        msg.zecef
+    ]
+    quat = []
+    return xyz, quat        
+
 
 def get_supported_topics(
         reader: typing.Union[Rosbag1Reader, Rosbag2Reader]) -> list:
@@ -277,6 +299,8 @@ def read_bag_trajectory(reader: typing.Union[Rosbag1Reader, Rosbag2Reader],
     # TODO: ensure that this works for both ROS1 and ROS2.
     if msg_type == "geometry_msgs/TransformStamped":
         get_xyz_quat = _get_xyz_quat_from_transform_stamped
+    elif msg_type == "g3_ros2_interfaces/msg/PVTData":
+        get_xyz_quat = _get_xyz_quat_from_pvt
     else:
         get_xyz_quat = _get_xyz_quat_from_pose_or_odometry_msg
 

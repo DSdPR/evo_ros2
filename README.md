@@ -1,3 +1,7 @@
+# SCORPION PROJECT MEMBERS READ THIS
+
+Make sure to point to the correct path of your installation of the G3 ROS2 driver in the file "evo/tools/file_interface.py" under line 55 before compiling evo. 
+
 # evo 
 
 ***Python package for the evaluation of odometry and SLAM***
