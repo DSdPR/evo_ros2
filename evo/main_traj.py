@@ -22,6 +22,7 @@ along with evo.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
+import datetime
 import logging
 import os
 
@@ -112,6 +113,9 @@ def parser() -> argparse.ArgumentParser:
                              action="store_true")
     output_opts.add_argument("--save_as_bag",
                              help="save trajectories in ROS bag as <date>.bag",
+                             action="store_true")
+    output_opts.add_argument("--save_as_bag2",
+                             help="save trajectories in ROS2 bag as <date>",
                              action="store_true")
     output_opts.add_argument("--logfile", help="Local logfile path.",
                              default=None)
@@ -522,29 +526,37 @@ def run(args):
             dest = to_filestem(args.ref, args) + ".kitti"
             file_interface.write_kitti_poses_file(
                 dest, ref_traj, confirm_overwrite=not args.no_warnings)
-    if args.save_as_bag:
-        import datetime
-        import rosbag
-        dest_bag_path = str(
-            datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")) + ".bag"
-        logger.info(SEP)
-        logger.info("Saving trajectories to " + dest_bag_path + "...")
-        bag = rosbag.Bag(dest_bag_path, 'w')
-        try:
-            for name, traj in trajectories.items():
-                dest_topic = to_topic_name(name, args)
-                frame_id = traj.meta[
-                    "frame_id"] if "frame_id" in traj.meta else ""
-                file_interface.write_bag_trajectory(bag, traj, dest_topic,
-                                                    frame_id)
-            if args.ref:
-                dest_topic = to_topic_name(args.ref, args)
-                frame_id = ref_traj.meta[
-                    "frame_id"] if "frame_id" in ref_traj.meta else ""
-                file_interface.write_bag_trajectory(bag, ref_traj, dest_topic,
-                                                    frame_id)
-        finally:
-            bag.close()
+    if args.save_as_bag or args.save_as_bag2:
+        from rosbags.rosbag1 import Writer as Rosbag1Writer
+        from rosbags.rosbag2 import Writer as Rosbag2Writer
+        writers = []
+        if args.save_as_bag:
+            dest_bag_path = str(
+                datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")) + ".bag"
+            writers.append(Rosbag1Writer(dest_bag_path))
+        if args.save_as_bag2:
+            dest_bag_path = str(
+                datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+            writers.append(Rosbag2Writer(dest_bag_path))
+        for writer in writers:
+            logger.info(SEP)
+            logger.info("Saving trajectories to " + str(writer.path) + "...")
+            try:
+                writer.open()
+                for name, traj in trajectories.items():
+                    dest_topic = to_topic_name(name, args)
+                    frame_id = traj.meta[
+                        "frame_id"] if "frame_id" in traj.meta else ""
+                    file_interface.write_bag_trajectory(writer, traj,
+                                                        dest_topic, frame_id)
+                if args.ref:
+                    dest_topic = to_topic_name(args.ref, args)
+                    frame_id = ref_traj.meta[
+                        "frame_id"] if "frame_id" in ref_traj.meta else ""
+                    file_interface.write_bag_trajectory(writer, ref_traj,
+                                                        dest_topic, frame_id)
+            finally:
+                writer.close()
 
     if args.save_table:
         from evo.tools import pandas_bridge
